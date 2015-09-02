@@ -17,49 +17,47 @@ using grpc::Status;
 using api::Grpc;
 
 class GrpcClient {
- public:
-  GrpcClient(std::shared_ptr<Channel> channel) : stub_(Grpc::NewStub(channel)) {}
+    public:
+        GrpcClient(std::shared_ptr<Channel> channel) : stub_(Grpc::NewStub(channel)) {}
 
-  std::string GetAllNeighbor(std::string neighbor_ip) {
-    api::Arguments request;
-    request.set_rf(4);
-    request.set_name(neighbor_ip);
+        std::string GetAllNeighbor(std::string neighbor_ip) {
+        api::Arguments request;
+        request.set_rf(4);
+        request.set_name(neighbor_ip);
 
-    ClientContext context;
+        ClientContext context;
 
-    api::Peer reply;
+        api::Peer peer;
+        grpc::Status status = stub_->GetNeighbor(&context, request, &peer);
 
-    ::grpc::Status status = stub_->GetNeighbor(&context, request, &reply);
+        if (status.ok()) {
+            api::PeerConf peer_conf = peer.conf();
+            api::PeerInfo peer_info = peer.info();
 
-if (status.ok()) {
-   ::api::PeerConf peer_conf = reply.conf();
-   ::api::PeerInfo peer_info = reply.info();
-
-    std::stringstream buffer;
+            std::stringstream buffer;
   
-    buffer
-        << "Peer AS: " << peer_conf.remote_as() << "\n"
-        << "Peer router id: " << peer_conf.id() << "\n"
-        << "Peer flops: " << peer_info.flops() << "\n"
-        << "BGP state: " << peer_info.bgp_state();
+            buffer
+                << "Peer AS: " << peer_conf.remote_as() << "\n"
+                << "Peer router id: " << peer_conf.id() << "\n"
+                << "Peer flops: " << peer_info.flops() << "\n"
+                << "BGP state: " << peer_info.bgp_state();
 
-    return buffer.str();
-} else {
-    return "Something wrong";
-}
+            return buffer.str();
+        } else {
+            return "Something wrong";
+        }
 
+    }
 
-  }
-
- private:
-  std::unique_ptr<Grpc::Stub> stub_;
+    private:
+        std::unique_ptr<Grpc::Stub> stub_;
 };
 
 int main(int argc, char** argv) {
-  GrpcClient gobgp_client(grpc::CreateChannel("localhost:8080", grpc::InsecureCredentials()));
+    GrpcClient gobgp_client(grpc::CreateChannel("localhost:8080", grpc::InsecureCredentials()));
  
-  std::string reply = gobgp_client.GetAllNeighbor("213.133.111.200");
-  std::cout << "We received: " << reply << std::endl;
+    std::string reply = gobgp_client.GetAllNeighbor("213.133.111.200");
+    std::cout << "We received: " << reply << std::endl;
 
-  return 0;
+    return 0;
 }
