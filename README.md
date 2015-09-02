@@ -41,10 +41,13 @@ echo "/opt/protobuf_3.0.0_alpha4/lib" > /etc/ld.so.conf.d/protobuf.conf
 ldconfig
 ```
 
-Clone this repository and change folder to it.
+Clone this repository and build API example:
 ```bash
 export PATH="$PATH:/opt//grpc/bin:/opt/protobuf_3.0.0_alpha4/bin/"
 
+cd /usr/src
+git clone https://github.com/pavel-odintsov/gobgp_api_cpp_client.git
+cd gobgp_api_cpp_client
 curl https://raw.githubusercontent.com/osrg/gobgp/master/api/gobgp.proto -ogobgp_api_client.proto
 make
 ```
