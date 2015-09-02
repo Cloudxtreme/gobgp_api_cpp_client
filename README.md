@@ -34,6 +34,13 @@ make -j 4
 make install prefix=/opt/grpc
 ```
 
+Add libs to the system path:
+```bash
+echo "/opt/grpc/lib" > /etc/ld.so.conf.d/grpc.conf
+echo "/opt/protobuf_3.0.0_alpha4/lib" > /etc/ld.so.conf.d/protobuf.conf
+ldconfig
+```
+
 Clone this repository and change folder to it.
 ```bash
 export PATH="$PATH:/opt//grpc/bin:/opt/protobuf_3.0.0_alpha4/bin/"
