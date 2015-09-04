@@ -10,6 +10,11 @@
 #include <grpc++/security/credentials.h>
 #include "gobgp_api_client.grpc.pb.h"
 
+extern "C" {
+    // Gobgp library
+    #include "libgobgp.h"
+}
+
 using grpc::Channel;
 using grpc::ClientContext;
 using grpc::Status;
@@ -39,8 +44,23 @@ class GrpcClient {
 
             api::Destination current_destination;
 
+            std::cout << "List of announced prefixes" << std::endl << std::endl;
             while (destinations_list->Read(&current_destination)) {
                 std::cout << "Prefix: " << current_destination.prefix() << std::endl;
+
+                //std::cout << "Paths size: " << current_destination.paths_size() << std::endl;
+
+                api::Path my_path = current_destination.paths(0);
+
+                buf my_nlri;
+                my_nlri.value = (char*)my_path.nlri().c_str();
+                my_nlri.len = my_path.nlri().size();
+
+                path_t gobgp_lib_path;
+                gobgp_lib_path.nlri = my_nlri;
+
+                // std::cout << "NLRI:" << my_path.nlri() << std::endl;
+                std::cout << decode_path(&gobgp_lib_path) << std::endl; 
             }
 
             Status status = destinations_list->Finish();
@@ -103,6 +123,7 @@ int main(int argc, char** argv) {
     //std::string reply = gobgp_client.GetAllNeighbor("213.133.111.200");
     //std::cout << "We received: " << reply << std::endl;
 
+    gobgp_client.AnnounceUnicastPrefix();
     gobgp_client.GetAllActiveAnnounces();
 
     return 0;
