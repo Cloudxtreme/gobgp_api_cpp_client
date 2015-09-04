@@ -19,6 +19,50 @@ using api::Grpc;
 class GrpcClient {
     public:
         GrpcClient(std::shared_ptr<Channel> channel) : stub_(Grpc::NewStub(channel)) {}
+        void GetAllActiveAnnounces() {
+            ClientContext context;
+            api::Arguments arguments;
+
+            unsigned int AFI_IP = 1;
+            unsigned int SAFI_UNICAST = 1;
+
+            // 65537
+            unsigned int route_family = AFI_IP<<16 | SAFI_UNICAST;
+            //std::cout << "RF: "<< route_family << std::endl;
+
+            arguments.set_rf(route_family);
+            // We could specify certain neighbor here
+            arguments.set_name("");
+            arguments.set_resource(api::Resource::GLOBAL);
+
+            auto destinations_list = stub_->GetRib(&context, arguments);
+
+            api::Destination current_destination;
+
+            while (destinations_list->Read(&current_destination)) {
+                std::cout << "Prefix: " << current_destination.prefix() << std::endl;
+            }
+
+            Status status = destinations_list->Finish();
+            if (!status.ok()) {
+                // error_message
+                std::cout << "Problem with RPC: " << status.error_code() << std::endl;
+            } else {
+                // std::cout << "RPC working well" << std::endl;
+            }
+        }
+
+        void AnnounceUnicastPrefix() {
+            std::string next_hop = "10.10.1.99";
+
+            api::ModPathArguments current_mod_path_arguments;
+            current_mod_path_arguments.set_resource(api::GLOBAL);
+
+            api::Path current_path; 
+            // current_path->set_is_withdraw();
+
+            current_path.set_nlri("10.10.20.33/22");
+        }
 
         std::string GetAllNeighbor(std::string neighbor_ip) {
         api::Arguments request;
@@ -44,7 +88,7 @@ class GrpcClient {
 
             return buffer.str();
         } else {
-            return "Something wrong";
+            return "Something wrong"; 
         }
 
     }
@@ -56,8 +100,10 @@ class GrpcClient {
 int main(int argc, char** argv) {
     GrpcClient gobgp_client(grpc::CreateChannel("localhost:8080", grpc::InsecureCredentials()));
  
-    std::string reply = gobgp_client.GetAllNeighbor("213.133.111.200");
-    std::cout << "We received: " << reply << std::endl;
+    //std::string reply = gobgp_client.GetAllNeighbor("213.133.111.200");
+    //std::cout << "We received: " << reply << std::endl;
+
+    gobgp_client.GetAllActiveAnnounces();
 
     return 0;
 }
