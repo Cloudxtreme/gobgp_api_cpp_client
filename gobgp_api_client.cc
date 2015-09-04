@@ -30,12 +30,14 @@ class GrpcClient {
 
             unsigned int AFI_IP = 1;
             unsigned int SAFI_UNICAST = 1;
-
             // 65537
-            unsigned int route_family = AFI_IP<<16 | SAFI_UNICAST;
+            unsigned int ipv4_unicast_route_family = AFI_IP<<16 | SAFI_UNICAST;
             //std::cout << "RF: "<< route_family << std::endl;
 
-            arguments.set_rf(route_family);
+            unsigned int SAFI_FLOW_SPEC_UNICAST = 133;
+            unsigned int ipv4_flow_spec_route_family = AFI_IP<<16 | SAFI_FLOW_SPEC_UNICAST;
+
+            arguments.set_rf(ipv4_flow_spec_route_family);
             // We could specify certain neighbor here
             arguments.set_name("");
             arguments.set_resource(api::Resource::GLOBAL);
@@ -47,10 +49,12 @@ class GrpcClient {
             std::cout << "List of announced prefixes" << std::endl << std::endl;
             while (destinations_list->Read(&current_destination)) {
                 std::cout << "Prefix: " << current_destination.prefix() << std::endl;
-
+    
                 //std::cout << "Paths size: " << current_destination.paths_size() << std::endl;
 
                 api::Path my_path = current_destination.paths(0);
+
+                // std::cout << "Pattrs size: " << my_path.pattrs_size() << std::endl;
 
                 buf my_nlri;
                 my_nlri.value = (char*)my_path.nlri().c_str();
@@ -58,9 +62,20 @@ class GrpcClient {
 
                 path_t gobgp_lib_path;
                 gobgp_lib_path.nlri = my_nlri;
+                // Not used in library code!
+                gobgp_lib_path.path_attributes_cap = 0;
+                gobgp_lib_path.path_attributes_len = my_path.pattrs_size();
 
-                // std::cout << "NLRI:" << my_path.nlri() << std::endl;
-                std::cout << decode_path(&gobgp_lib_path) << std::endl; 
+                buf* my_path_attributes[ my_path.pattrs_size() ];
+                for (int i = 0; i < my_path.pattrs_size(); i++) {
+                    my_path_attributes[i] = (buf*)malloc(sizeof(buf));
+                    my_path_attributes[i]->len = my_path.pattrs(i).size();
+                    my_path_attributes[i]->value = (char*)my_path.pattrs(i).c_str();
+                }
+            
+                gobgp_lib_path.path_attributes = my_path_attributes;
+
+                std::cout << "NLRI: " << decode_path(&gobgp_lib_path) << std::endl; 
             }
 
             Status status = destinations_list->Finish();
