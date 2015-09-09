@@ -24,20 +24,11 @@ using api::Grpc;
 class GrpcClient {
     public:
         GrpcClient(std::shared_ptr<Channel> channel) : stub_(Grpc::NewStub(channel)) {}
-        void GetAllActiveAnnounces() {
+        void GetAllActiveAnnounces(unsigned int route_family) {
             ClientContext context;
             api::Arguments arguments;
 
-            unsigned int AFI_IP = 1;
-            unsigned int SAFI_UNICAST = 1;
-            // 65537
-            unsigned int ipv4_unicast_route_family = AFI_IP<<16 | SAFI_UNICAST;
-            //std::cout << "RF: "<< route_family << std::endl;
-
-            unsigned int SAFI_FLOW_SPEC_UNICAST = 133;
-            unsigned int ipv4_flow_spec_route_family = AFI_IP<<16 | SAFI_FLOW_SPEC_UNICAST;
-
-            arguments.set_rf(ipv4_flow_spec_route_family);
+            arguments.set_rf(route_family);
             // We could specify certain neighbor here
             arguments.set_name("");
             arguments.set_resource(api::Resource::GLOBAL);
@@ -46,7 +37,7 @@ class GrpcClient {
 
             api::Destination current_destination;
 
-            std::cout << "List of announced prefixes" << std::endl << std::endl;
+            std::cout << "List of announced prefixes for route family: " << route_family << std::endl << std::endl;
             while (destinations_list->Read(&current_destination)) {
                 std::cout << "Prefix: " << current_destination.prefix() << std::endl;
     
@@ -93,39 +84,63 @@ class GrpcClient {
             api::ModPathArguments current_mod_path_arguments;
             current_mod_path_arguments.set_resource(api::GLOBAL);
 
+            unsigned int AFI_IP = 1;
+            unsigned int SAFI_UNICAST = 1;
+            unsigned int ipv4_unicast_route_family = AFI_IP<<16 | SAFI_UNICAST;
+
             api::Path current_path; 
             // current_path->set_is_withdraw();
+            path* p = serialize_path(ipv4_unicast_route_family, "10.10.20.33/22");
+        
+            // current_path.set_nlri("10.10.20.33/22");
 
-            current_path.set_nlri("10.10.20.33/22");
+            api::Arguments request;
+            request.set_rf(ipv4_unicast_route_family); 
+            request.set_resource(api::Resource::GLOBAL);
+
+            ClientContext context;
+
+            api::Error return_error;
+
+            // WTF? Where request?
+            // result is a std::unique_ptr<grpc::ClientWriter<api::ModPathArguments> >
+            auto result = stub_->ModPath(&context, &return_error);
+
+            /*
+            if (status.ok()) {
+                std::cout << "modpath executed correctly" << std::cout; 
+            } else {
+                std::cout << "modpath failed" << std::cout;
+            }
+            */
         }
 
         std::string GetAllNeighbor(std::string neighbor_ip) {
-        api::Arguments request;
-        request.set_rf(4);
-        request.set_name(neighbor_ip);
+            api::Arguments request;
+            request.set_rf(4);
+            request.set_name(neighbor_ip);
 
-        ClientContext context;
+            ClientContext context;
 
-        api::Peer peer;
-        grpc::Status status = stub_->GetNeighbor(&context, request, &peer);
+            api::Peer peer;
+            grpc::Status status = stub_->GetNeighbor(&context, request, &peer);
 
-        if (status.ok()) {
-            api::PeerConf peer_conf = peer.conf();
-            api::PeerInfo peer_info = peer.info();
+            if (status.ok()) {
+                api::PeerConf peer_conf = peer.conf();
+                api::PeerInfo peer_info = peer.info();
 
-            std::stringstream buffer;
+                std::stringstream buffer;
   
-            buffer
-                << "Peer AS: " << peer_conf.remote_as() << "\n"
-                << "Peer router id: " << peer_conf.id() << "\n"
-                << "Peer flops: " << peer_info.flops() << "\n"
-                << "BGP state: " << peer_info.bgp_state();
+                buffer
+                    << "Peer AS: " << peer_conf.remote_as() << "\n"
+                    << "Peer router id: " << peer_conf.id() << "\n"
+                    << "Peer flops: " << peer_info.flops() << "\n"
+                    << "BGP state: " << peer_info.bgp_state();
 
-            return buffer.str();
-        } else {
-            return "Something wrong"; 
-        }
-
+                return buffer.str();
+            } else {
+                return "Something wrong"; 
+            }
     }
 
     private:
@@ -138,8 +153,17 @@ int main(int argc, char** argv) {
     //std::string reply = gobgp_client.GetAllNeighbor("213.133.111.200");
     //std::cout << "We received: " << reply << std::endl;
 
-    gobgp_client.AnnounceUnicastPrefix();
-    gobgp_client.GetAllActiveAnnounces();
+    //gobgp_client.AnnounceUnicastPrefix();
+    unsigned int AFI_IP = 1;
+    unsigned int SAFI_UNICAST = 1;
+    unsigned int SAFI_FLOW_SPEC_UNICAST = 133;
+
+    unsigned int ipv4_unicast_route_family = AFI_IP<<16 | SAFI_UNICAST;
+    unsigned int ipv4_flow_spec_route_family = AFI_IP<<16 | SAFI_FLOW_SPEC_UNICAST;   
+ 
+    gobgp_client.GetAllActiveAnnounces(ipv4_unicast_route_family);
+    std::cout << std::endl << std::endl;
+    gobgp_client.GetAllActiveAnnounces(ipv4_flow_spec_route_family);
 
     return 0;
 }
