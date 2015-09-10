@@ -2,6 +2,7 @@
 #include <memory>
 #include <sstream>
 #include <string>
+#include <string.h>
 
 #include <grpc/grpc.h>
 #include <grpc++/channel.h>
@@ -66,13 +67,13 @@ class GrpcClient {
             
                 gobgp_lib_path.path_attributes = my_path_attributes;
 
-                std::cout << "NLRI: " << decode_path(&gobgp_lib_path) << std::endl; 
+                //std::cout << "NLRI: " << decode_path(&gobgp_lib_path) << std::endl; 
             }
 
             Status status = destinations_list->Finish();
             if (!status.ok()) {
                 // error_message
-                std::cout << "Problem with RPC: " << status.error_code() << std::endl;
+                std::cout << "Problem with RPC: " << status.error_code() << " message " << status.error_message() << std::endl;
             } else {
                 // std::cout << "RPC working well" << std::endl;
             }
@@ -81,38 +82,68 @@ class GrpcClient {
         void AnnounceUnicastPrefix() {
             std::string next_hop = "10.10.1.99";
 
-            api::ModPathArguments current_mod_path_arguments;
-            current_mod_path_arguments.set_resource(api::GLOBAL);
+            const api::ModPathArguments current_mod_path_arguments;
 
             unsigned int AFI_IP = 1;
             unsigned int SAFI_UNICAST = 1;
             unsigned int ipv4_unicast_route_family = AFI_IP<<16 | SAFI_UNICAST;
 
-            api::Path current_path; 
-            // current_path->set_is_withdraw();
-            path* p = serialize_path(ipv4_unicast_route_family, "10.10.20.33/22");
-        
-            // current_path.set_nlri("10.10.20.33/22");
+            api::Path* current_path = new api::Path;
+            // If you want withdraw, please use it 
+            // current_path->set_is_withdraw(true);
 
-            api::Arguments request;
-            request.set_rf(ipv4_unicast_route_family); 
+            /*
+            buf:
+                char *value;
+                int len;
+
+            path:
+                buf   nlri;
+                buf** path_attributes;
+                int   path_attributes_len;
+                int   path_attributes_cap;
+            */
+
+            path* path_c_struct = serialize_path(ipv4_unicast_route_family, (char*)"10.10.20.33/22");
+
+            // printf("Decoded NLRI output: %s, length %d raw string length: %d\n", decode_path(path_c_struct), path_c_struct->nlri.len, strlen(path_c_struct->nlri.value));
+
+            for (int path_attribute_number = 0; path_attribute_number < path_c_struct->path_attributes_len; path_attribute_number++) {
+                current_path->add_pattrs(path_c_struct->path_attributes[path_attribute_number]->value, 
+                    path_c_struct->path_attributes[path_attribute_number]->len);
+            }
+
+            current_path->set_nlri(path_c_struct->nlri.value, path_c_struct->nlri.len);
+
+            api::ModPathArguments request;
             request.set_resource(api::Resource::GLOBAL);
+            request.set_allocated_path(current_path);
+            request.set_name("");
 
             ClientContext context;
 
             api::Error return_error;
 
-            // WTF? Where request?
             // result is a std::unique_ptr<grpc::ClientWriter<api::ModPathArguments> >
-            auto result = stub_->ModPath(&context, &return_error);
+            auto send_stream = stub_->ModPath(&context, &return_error);
 
-            /*
-            if (status.ok()) {
-                std::cout << "modpath executed correctly" << std::cout; 
-            } else {
-                std::cout << "modpath failed" << std::cout;
+            bool write_result = send_stream->Write(request);
+
+            if (!write_result) {
+                std::cout << "Write to API failed\n";
             }
-            */
+
+            // Finish all writes
+            send_stream->WritesDone();
+
+            auto status = send_stream->Finish();
+    
+            if (status.ok()) {
+                //std::cout << "modpath executed correctly" << std::cout; 
+            } else {
+                std::cout << "modpath failed with code: " << status.error_code()
+                    << " message " << status.error_message() << std::endl;
+            }
         }
 
         std::string GetAllNeighbor(std::string neighbor_ip) {
@@ -153,7 +184,7 @@ int main(int argc, char** argv) {
     //std::string reply = gobgp_client.GetAllNeighbor("213.133.111.200");
     //std::cout << "We received: " << reply << std::endl;
 
-    //gobgp_client.AnnounceUnicastPrefix();
+    gobgp_client.AnnounceUnicastPrefix();
     unsigned int AFI_IP = 1;
     unsigned int SAFI_UNICAST = 1;
     unsigned int SAFI_FLOW_SPEC_UNICAST = 133;
