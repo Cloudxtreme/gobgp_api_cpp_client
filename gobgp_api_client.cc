@@ -67,7 +67,7 @@ class GrpcClient {
             
                 gobgp_lib_path.path_attributes = my_path_attributes;
 
-                //std::cout << "NLRI: " << decode_path(&gobgp_lib_path) << std::endl; 
+                std::cout << "NLRI: " << decode_path(&gobgp_lib_path) << std::endl; 
             }
 
             Status status = destinations_list->Finish();
@@ -76,6 +76,71 @@ class GrpcClient {
                 std::cout << "Problem with RPC: " << status.error_code() << " message " << status.error_message() << std::endl;
             } else {
                 // std::cout << "RPC working well" << std::endl;
+            }
+        }
+
+        void AnnounceFlowSpecPrefix() {
+            const api::ModPathArguments current_mod_path_arguments;
+
+            unsigned int AFI_IP = 1;
+            unsigned int SAFI_FLOW_SPEC_UNICAST = 133;
+            unsigned int ipv4_flow_spec_route_family = AFI_IP<<16 | SAFI_FLOW_SPEC_UNICAST;   
+
+            api::Path* current_path = new api::Path;
+            // If you want withdraw, please use it 
+            // current_path->set_is_withdraw(true);
+
+            /*
+            buf:
+                char *value;
+                int len;
+
+            path:
+                buf   nlri;
+                buf** path_attributes;
+                int   path_attributes_len;
+                int   path_attributes_cap;
+            */
+
+            path* path_c_struct = serialize_path(ipv4_flow_spec_route_family, (char*)"match destination 10.0.0.0/24 protocol tcp source 20.0.0.0/24 then redirect 10:10");
+
+            // printf("Decoded NLRI output: %s, length %d raw string length: %d\n", decode_path(path_c_struct), path_c_struct->nlri.len, strlen(path_c_struct->nlri.value));
+
+            for (int path_attribute_number = 0; path_attribute_number < path_c_struct->path_attributes_len; path_attribute_number++) {
+                current_path->add_pattrs(path_c_struct->path_attributes[path_attribute_number]->value, 
+                    path_c_struct->path_attributes[path_attribute_number]->len);
+            }
+
+            current_path->set_nlri(path_c_struct->nlri.value, path_c_struct->nlri.len);
+
+            api::ModPathArguments request;
+            request.set_resource(api::Resource::GLOBAL);
+            request.set_allocated_path(current_path);
+            request.set_name("");
+
+            ClientContext context;
+
+            api::Error return_error;
+
+            // result is a std::unique_ptr<grpc::ClientWriter<api::ModPathArguments> >
+            auto send_stream = stub_->ModPath(&context, &return_error);
+
+            bool write_result = send_stream->Write(request);
+
+            if (!write_result) {
+                std::cout << "Write to API failed\n";
+            }
+
+            // Finish all writes
+            send_stream->WritesDone();
+
+            auto status = send_stream->Finish();
+    
+            if (status.ok()) {
+                //std::cout << "modpath executed correctly" << std::cout; 
+            } else {
+                std::cout << "modpath failed with code: " << status.error_code()
+                    << " message " << status.error_message() << std::endl;
             }
         }
 
@@ -185,6 +250,9 @@ int main(int argc, char** argv) {
     //std::cout << "We received: " << reply << std::endl;
 
     gobgp_client.AnnounceUnicastPrefix();
+
+    gobgp_client.AnnounceFlowSpecPrefix();
+
     unsigned int AFI_IP = 1;
     unsigned int SAFI_UNICAST = 1;
     unsigned int SAFI_FLOW_SPEC_UNICAST = 133;
