@@ -20,23 +20,23 @@ using grpc::Channel;
 using grpc::ClientContext;
 using grpc::Status;
 
-using api::Grpc;
+using gobgpapi::GobgpApi;
 
 class GrpcClient {
     public:
-        GrpcClient(std::shared_ptr<Channel> channel) : stub_(Grpc::NewStub(channel)) {}
+        GrpcClient(std::shared_ptr<Channel> channel) : stub_(GobgpApi::NewStub(channel)) {}
         void GetAllActiveAnnounces(unsigned int route_family) {
             ClientContext context;
-            api::Arguments arguments;
+            gobgpapi::Arguments arguments;
 
             arguments.set_rf(route_family);
             // We could specify certain neighbor here
             arguments.set_name("");
-            arguments.set_resource(api::Resource::GLOBAL);
+            arguments.set_resource(gobgpapi::Resource::GLOBAL);
 
             auto destinations_list = stub_->GetRib(&context, arguments);
 
-            api::Destination current_destination;
+            gobgpapi::Destination current_destination;
 
             std::cout << "List of announced prefixes for route family: " << route_family << std::endl << std::endl;
             while (destinations_list->Read(&current_destination)) {
@@ -44,7 +44,7 @@ class GrpcClient {
     
                 //std::cout << "Paths size: " << current_destination.paths_size() << std::endl;
 
-                api::Path my_path = current_destination.paths(0);
+                gobgpapi::Path my_path = current_destination.paths(0);
 
                 // std::cout << "Pattrs size: " << my_path.pattrs_size() << std::endl;
 
@@ -80,13 +80,13 @@ class GrpcClient {
         }
 
         void AnnounceFlowSpecPrefix() {
-            const api::ModPathArguments current_mod_path_arguments;
+            const gobgpapi::ModPathArguments current_mod_path_arguments;
 
             unsigned int AFI_IP = 1;
             unsigned int SAFI_FLOW_SPEC_UNICAST = 133;
             unsigned int ipv4_flow_spec_route_family = AFI_IP<<16 | SAFI_FLOW_SPEC_UNICAST;   
 
-            api::Path* current_path = new api::Path;
+            gobgpapi::Path* current_path = new gobgpapi::Path;
             // If you want withdraw, please use it 
             // current_path->set_is_withdraw(true);
 
@@ -113,16 +113,18 @@ class GrpcClient {
 
             current_path->set_nlri(path_c_struct->nlri.value, path_c_struct->nlri.len);
 
-            api::ModPathArguments request;
-            request.set_resource(api::Resource::GLOBAL);
-            request.set_allocated_path(current_path);
+            gobgpapi::ModPathArguments request;
+            request.set_resource(gobgpapi::Resource::GLOBAL);
+
+            google::protobuf::RepeatedPtrField< ::gobgpapi::Path >* current_path_list = request.mutable_paths(); 
+            current_path_list->AddAllocated(current_path);
             request.set_name("");
 
             ClientContext context;
 
-            api::Error return_error;
+            gobgpapi::Error return_error;
 
-            // result is a std::unique_ptr<grpc::ClientWriter<api::ModPathArguments> >
+            // result is a std::unique_ptr<grpc::ClientWriter<gobgpapi::ModPathArguments> >
             auto send_stream = stub_->ModPath(&context, &return_error);
 
             bool write_result = send_stream->Write(request);
@@ -145,15 +147,13 @@ class GrpcClient {
         }
 
         void AnnounceUnicastPrefix() {
-            std::string next_hop = "10.10.1.99";
-
-            const api::ModPathArguments current_mod_path_arguments;
+            const gobgpapi::ModPathArguments current_mod_path_arguments;
 
             unsigned int AFI_IP = 1;
             unsigned int SAFI_UNICAST = 1;
             unsigned int ipv4_unicast_route_family = AFI_IP<<16 | SAFI_UNICAST;
 
-            api::Path* current_path = new api::Path;
+            gobgpapi::Path* current_path = new gobgpapi::Path;
             // If you want withdraw, please use it 
             // current_path->set_is_withdraw(true);
 
@@ -169,6 +169,7 @@ class GrpcClient {
                 int   path_attributes_cap;
             */
 
+            // 10.10.20.33/22 nexthop 10.10.1.99/32 
             path* path_c_struct = serialize_path(ipv4_unicast_route_family, (char*)"10.10.20.33/22");
 
             // printf("Decoded NLRI output: %s, length %d raw string length: %d\n", decode_path(path_c_struct), path_c_struct->nlri.len, strlen(path_c_struct->nlri.value));
@@ -180,14 +181,15 @@ class GrpcClient {
 
             current_path->set_nlri(path_c_struct->nlri.value, path_c_struct->nlri.len);
 
-            api::ModPathArguments request;
-            request.set_resource(api::Resource::GLOBAL);
-            request.set_allocated_path(current_path);
+            gobgpapi::ModPathArguments request;
+            request.set_resource(gobgpapi::Resource::GLOBAL);
+            google::protobuf::RepeatedPtrField< ::gobgpapi::Path >* current_path_list = request.mutable_paths(); 
+            current_path_list->AddAllocated(current_path);
             request.set_name("");
 
             ClientContext context;
 
-            api::Error return_error;
+            gobgpapi::Error return_error;
 
             // result is a std::unique_ptr<grpc::ClientWriter<api::ModPathArguments> >
             auto send_stream = stub_->ModPath(&context, &return_error);
@@ -212,18 +214,18 @@ class GrpcClient {
         }
 
         std::string GetAllNeighbor(std::string neighbor_ip) {
-            api::Arguments request;
+            gobgpapi::Arguments request;
             request.set_rf(4);
             request.set_name(neighbor_ip);
 
             ClientContext context;
 
-            api::Peer peer;
+            gobgpapi::Peer peer;
             grpc::Status status = stub_->GetNeighbor(&context, request, &peer);
 
             if (status.ok()) {
-                api::PeerConf peer_conf = peer.conf();
-                api::PeerInfo peer_info = peer.info();
+                gobgpapi::PeerConf peer_conf = peer.conf();
+                gobgpapi::PeerInfo peer_info = peer.info();
 
                 std::stringstream buffer;
   
@@ -240,7 +242,7 @@ class GrpcClient {
     }
 
     private:
-        std::unique_ptr<Grpc::Stub> stub_;
+        std::unique_ptr<GobgpApi::Stub> stub_;
 };
 
 int main(int argc, char** argv) {
