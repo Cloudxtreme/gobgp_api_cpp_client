@@ -5,7 +5,7 @@
 /* Start of preamble from import "C" comments.  */
 
 
-#line 18 "/root/gobgp/gobgp/lib/path.go"
+#line 18 "/usr/src/gobgp/gobgp/lib/path.go"
  typedef struct {
      char *value;
      int len;
@@ -18,7 +18,7 @@
      int   path_attributes_cap;
  } path;
  extern path* new_path();
- extern int free_path(path*);
+ extern void free_path(path*);
  extern int append_path_attribute(path*, int, char*);
  extern buf* get_path_attribute(path*, int);
 
@@ -72,6 +72,8 @@ extern int get_route_family(char* p0);
 extern path* serialize_path(int p0, char* p1);
 
 extern char* decode_path(path* p0);
+
+extern char* decode_capabilities(buf* p0);
 
 #ifdef __cplusplus
 }

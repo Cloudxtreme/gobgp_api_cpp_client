@@ -168,9 +168,17 @@ class GrpcClient {
                 int   path_attributes_len;
                 int   path_attributes_cap;
             */
+            std::string announced_prefix = "10.10.20.33/32";
+            std::string announced_prefix_nexthop = "10.10.1.99";
 
-            // 10.10.20.33/22 nexthop 10.10.1.99/32 
-            path* path_c_struct = serialize_path(ipv4_unicast_route_family, (char*)"10.10.20.33/22");
+            std::string announce_line = announced_prefix + " nexthop " + announced_prefix_nexthop;
+
+            path* path_c_struct = serialize_path(ipv4_unicast_route_family, (char*)announce_line.c_str());
+
+            if (path_c_struct == NULL) {
+                std::cerr << "Could not generate path\n";
+                exit(-1);
+            }
 
             // printf("Decoded NLRI output: %s, length %d raw string length: %d\n", decode_path(path_c_struct), path_c_struct->nlri.len, strlen(path_c_struct->nlri.value));
 
