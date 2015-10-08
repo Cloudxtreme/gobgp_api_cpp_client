@@ -1,7 +1,7 @@
 CXX = g++
-CPPFLAGS += -I/opt/protobuf_3.0.0_alpha4/include -I/opt/grpc/include -pthread
+CPPFLAGS += -I/opt/protobuf_3.0.0_alpha4/include -I/opt//grpc_0_11_1_7a94236d698477636dd06282f12f706cad527029/include -pthread -I/opt/libgobgp_1_0_0/include/
 CXXFLAGS += -std=c++11
-LDFLAGS += -L/opt/grpc/lib -L/opt/protobuf_3.0.0_alpha4/lib -lgrpc++_unsecure -lgrpc -lgpr -lprotobuf -lpthread -ldl
+LDFLAGS += -L/opt//grpc_0_11_1_7a94236d698477636dd06282f12f706cad527029/lib -L/opt/libgobgp_1_0_0/lib -L/opt/protobuf_3.0.0_alpha4/lib -lgrpc++_unsecure -lgrpc -lgpr -lprotobuf -lpthread -ldl
 PROTOC = protoc
 GRPC_CPP_PLUGIN = grpc_cpp_plugin
 GRPC_CPP_PLUGIN_PATH ?= `which $(GRPC_CPP_PLUGIN)`
