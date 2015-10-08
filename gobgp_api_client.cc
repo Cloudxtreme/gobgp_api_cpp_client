@@ -11,6 +11,8 @@
 #include <grpc++/security/credentials.h>
 #include "gobgp_api_client.grpc.pb.h"
 
+#include <dlfcn.h>
+
 extern "C" {
     // Gobgp library
     #include "libgobgp.h"
@@ -21,6 +23,13 @@ using grpc::ClientContext;
 using grpc::Status;
 
 using gobgpapi::GobgpApi;
+
+// Create function pointers
+typedef path* (*serialize_path_dynamic_t)(int p0, char* p1);
+typedef char* (*decode_path_dynamic_t)(path* p0);
+
+serialize_path_dynamic_t serialize_path_dynamic = NULL;
+decode_path_dynamic_t decode_path_dynamic = NULL;
 
 class GrpcClient {
     public:
@@ -67,7 +76,7 @@ class GrpcClient {
             
                 gobgp_lib_path.path_attributes = my_path_attributes;
 
-                std::cout << "NLRI: " << decode_path(&gobgp_lib_path) << std::endl; 
+                std::cout << "NLRI: " << decode_path_dynamic(&gobgp_lib_path) << std::endl; 
             }
 
             Status status = destinations_list->Finish();
@@ -102,7 +111,7 @@ class GrpcClient {
                 int   path_attributes_cap;
             */
 
-            path* path_c_struct = serialize_path(ipv4_flow_spec_route_family, (char*)"match destination 10.0.0.0/24 protocol tcp source 20.0.0.0/24 then redirect 10:10");
+            path* path_c_struct = serialize_path_dynamic(ipv4_flow_spec_route_family, (char*)"match destination 10.0.0.0/24 protocol tcp source 20.0.0.0/24 then redirect 10:10");
 
             // printf("Decoded NLRI output: %s, length %d raw string length: %d\n", decode_path(path_c_struct), path_c_struct->nlri.len, strlen(path_c_struct->nlri.value));
 
@@ -173,7 +182,7 @@ class GrpcClient {
 
             std::string announce_line = announced_prefix + " nexthop " + announced_prefix_nexthop;
 
-            path* path_c_struct = serialize_path(ipv4_unicast_route_family, (char*)announce_line.c_str());
+            path* path_c_struct = serialize_path_dynamic(ipv4_unicast_route_family, (char*)announce_line.c_str());
 
             if (path_c_struct == NULL) {
                 std::cerr << "Could not generate path\n";
@@ -254,6 +263,35 @@ class GrpcClient {
 };
 
 int main(int argc, char** argv) {
+    // We use non absoulte path here and linker will find it fir us
+    void* gobgdp_library_handle = dlopen("libgobgp.so", RTLD_NOW);
+
+    if (gobgdp_library_handle == NULL) {
+        printf("Could not load gobgp binary library\n");
+        exit(1);
+    } 
+
+    dlerror();    /* Clear any existing error */
+
+    /* According to the ISO C standard, casting between function
+        pointers and 'void *', as done above, produces undefined results.
+        POSIX.1-2003 and POSIX.1-2008 accepted this state of affairs and
+        proposed the following workaround:
+    */
+
+    serialize_path_dynamic = (serialize_path_dynamic_t)dlsym(gobgdp_library_handle, "serialize_path");
+    if (serialize_path_dynamic == NULL) {
+        printf("Could not load function serialize_path from the dynamic library\n");
+        exit(1);
+    }
+
+    decode_path_dynamic = (decode_path_dynamic_t)dlsym(gobgdp_library_handle, "decode_path");
+
+    if (decode_path_dynamic == NULL) {
+        printf("Could not load function decode_path from the dynamic library\n");
+        exit(1);
+    }
+
     GrpcClient gobgp_client(grpc::CreateChannel("localhost:8080", grpc::InsecureCredentials()));
  
     //std::string reply = gobgp_client.GetAllNeighbor("213.133.111.200");
