@@ -264,9 +264,9 @@ class GrpcClient {
 
 int main(int argc, char** argv) {
     // We use non absoulte path here and linker will find it fir us
-    void* gobgdp_library_handle = dlopen("libgobgp.so", RTLD_NOW);
+    void* gobgp_library_handle = dlopen("libgobgp.so", RTLD_NOW);
 
-    if (gobgdp_library_handle == NULL) {
+    if (gobgp_library_handle == NULL) {
         printf("Could not load gobgp binary library\n");
         exit(1);
     } 
@@ -279,13 +279,13 @@ int main(int argc, char** argv) {
         proposed the following workaround:
     */
 
-    serialize_path_dynamic = (serialize_path_dynamic_t)dlsym(gobgdp_library_handle, "serialize_path");
+    serialize_path_dynamic = (serialize_path_dynamic_t)dlsym(gobgp_library_handle, "serialize_path");
     if (serialize_path_dynamic == NULL) {
         printf("Could not load function serialize_path from the dynamic library\n");
         exit(1);
     }
 
-    decode_path_dynamic = (decode_path_dynamic_t)dlsym(gobgdp_library_handle, "decode_path");
+    decode_path_dynamic = (decode_path_dynamic_t)dlsym(gobgp_library_handle, "decode_path");
 
     if (decode_path_dynamic == NULL) {
         printf("Could not load function decode_path from the dynamic library\n");
