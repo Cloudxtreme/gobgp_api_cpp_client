@@ -312,5 +312,11 @@ int main(int argc, char** argv) {
     std::cout << std::endl << std::endl;
     gobgp_client.GetAllActiveAnnounces(ipv4_flow_spec_route_family);
 
+    // This code will kill program with segmentation fault
+    /*
+    dlclose(gobgp_library_handle);
+
+    while (true) {}
     return 0;
+    */
 }
